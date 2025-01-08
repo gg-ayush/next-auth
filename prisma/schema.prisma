@@ -1,0 +1,185 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  userId            String  @unique @db.Uuid
+  user              User    @relation(fields: [userId], references: [gg_id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model User {
+  gg_id                 String                 @id @default(uuid()) @db.Uuid
+  username              String?                @unique
+  first_name            String?                @db.VarChar(50)
+  last_name             String?                @db.VarChar(50)
+  email                 String?                @unique @db.VarChar(100)
+  emailVerified         DateTime?
+  phone_number          String?                @unique @db.VarChar(15)
+  password              String?                @db.VarChar(255)
+  role                  UserRole               @default(Developer)
+  isTwoFactorEnabled    Boolean                @default(false)
+  cover_images          String[]
+  created_at            DateTime               @default(now()) @db.Timestamp(6)
+  updated_at            DateTime               @updatedAt
+  oauth_provider        String?                @db.VarChar(50)
+  oauth_token           String?                @db.VarChar(255)
+  otp                   Int?
+  accounts              Account?
+  twoFactorConfirmation TwoFactorConfirmation?
+  UserPaymentMethod     UserPaymentMethod[]
+  cards                 cards[]
+  Color                 Color[]
+  developer_id          String?                @db.Uuid
+  developer             User?                  @relation("DeveloperUsers", fields: [developer_id], references: [gg_id])
+  application_users     User[]                 @relation("DeveloperUsers")
+  applications          Application[]
+
+  ApplicationUser       ApplicationUser[]
+}
+
+model ApplicationApiKey {
+  id            String   @id @default(cuid())
+  application_id String
+  application   Application @relation(fields: [application_id], references: [id])
+  public_key    String   @unique
+  hashed_secret String
+  created_at    DateTime @default(now())
+  last_used     DateTime @updatedAt
+
+  @@index([public_key])
+}
+
+model Application {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  developer_id String  @db.Uuid
+  developer   User     @relation(fields: [developer_id], references: [gg_id])
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  users       ApplicationUser[]
+
+  ApplicationApiKey ApplicationApiKey[]
+}
+
+model ApplicationUser {
+  id            String     @id @default(cuid())
+  user_id       String     @db.Uuid
+  user          User       @relation(fields: [user_id], references: [gg_id])
+  application_id String
+  application   Application @relation(fields: [application_id], references: [id])
+  created_at    DateTime   @default(now())
+  updated_at  DateTime      @updatedAt
+  @@unique([user_id, application_id])
+}
+
+model VerificationToken {
+  id      String   @id @default(cuid())
+  email   String
+  token   String   @unique
+  expires DateTime
+
+  @@unique([email, token])
+}
+
+model ResetPasswordToken {
+  id      String   @id @default(cuid())
+  email   String
+  token   String   @unique
+  expires DateTime
+
+  @@unique([email, token])
+}
+
+model TwoFactorToken {
+  id      String   @id @default(cuid())
+  email   String
+  token   String   @unique
+  expires DateTime
+
+  @@unique([email, token])
+}
+
+model TwoFactorConfirmation {
+  id      String   @id @default(cuid())
+  expires DateTime
+  userId  String   @unique @db.Uuid
+  user    User     @relation(fields: [userId], references: [gg_id], onDelete: Cascade)
+}
+
+model UserPaymentMethod {
+  id             String      @id
+  userId         String      @db.Uuid
+  typeId         String
+  provider       String?
+  account_number String?
+  expiry_date    DateTime?
+  is_default     Boolean     @default(true)
+  PaymentType    PaymentType @relation(fields: [typeId], references: [id])
+  User           User        @relation(fields: [userId], references: [gg_id], onDelete: Cascade)
+}
+
+model PaymentType {
+  id                String              @id
+  paymentType       String
+  // Order             Order[]
+  UserPaymentMethod UserPaymentMethod[]
+}
+
+model cards {
+  card_id           String  @id(map: "card_pkey") @default(uuid()) @db.Uuid
+  gg_id             String  @db.Uuid
+  type              String? @db.VarChar(50)
+  name              String? @db.VarChar(50)
+  description       String?
+  date_in           String? @db.VarChar
+  date_out          String? @db.VarChar
+  blood_group       String?
+  emergency_contact String?
+  emergency_details String?
+  emergency_address String?
+  users             User    @relation(fields: [gg_id], references: [gg_id], onDelete: Cascade, onUpdate: NoAction, map: "card_gg_id_fkey")
+}
+
+model Color {
+  id     String    @id @default(cuid())
+  type   ThemeType
+  value  String
+  userId String    @db.Uuid
+  status Boolean   @default(false)
+  user   User      @relation(fields: [userId], references: [gg_id], onDelete: Cascade)
+}
+
+enum ThemeType {
+  THEME
+  TEXT
+}
+
+enum UserRole {
+  Developer
+  User
+}
