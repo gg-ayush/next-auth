@@ -43,7 +43,7 @@ export const createNewApplication = async (
         },
       });
     }
-
+    
     const application = await createApplication(
       validatedFields.data.name,
       validatedFields.data.description || null,

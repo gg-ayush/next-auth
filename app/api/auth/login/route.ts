@@ -1,59 +1,78 @@
-import { NextRequest } from 'next/server';
-import { db } from '@/lib/db';
-import { verifyPassword } from '@/lib/auth';
-import { sign } from 'jsonwebtoken';
-import { ApiResponse, AuthResponse } from '../../types';
+import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 
-export async function POST(req: NextRequest) {
-  try {
-    const { email, password } = await req.json();
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { ApiResponse } from '../../types'
 
-    const user = await db.user.findFirst({
-      where: { email }
-    });
+async function verifyApiKey(publicKey: string, secretKey: string) {
+  const apiKey = await db.applicationApiKey.findUnique({
+    where: { public_key: publicKey },
+    include: { application: true },
+  })
 
-    if (!user || !user.password) {
-      return Response.json({ 
-        error: 'Invalid credentials',
-        status: 401
-      } as ApiResponse, { status: 401 });
-    }
+  if (!apiKey) return null
 
-    const isValid = await verifyPassword(password, user.password);
+  const hashedSecret = crypto.createHash('sha256').update(secretKey).digest('hex')
+  if (hashedSecret !== apiKey.hashed_secret) return null
 
-    if (!isValid) {
-      return Response.json({ 
-        error: 'Invalid credentials',
-        status: 401
-      } as ApiResponse, { status: 401 });
-    }
-
-    const token = sign(
-      { 
-        userId: user.gg_id, 
-        email: user.email, 
-        role: user.role
-      },
-      process.env.JWT_SECRET || '',
-      { expiresIn: '1h' }
-    );
-
-    const { password: _, ...userWithoutPassword } = user;
-
-    return Response.json({
-      data: { 
-        user: userWithoutPassword, 
-        token 
-      },
-      status: 200
-    } as ApiResponse<AuthResponse>, { status: 200 });
-
-  } catch (error) {
-    console.error('Login error:', error);
-    return Response.json({ 
-      error: 'Internal Server Error',
-      status: 500
-    } as ApiResponse, { status: 500 });
-  }
+  return apiKey.application
 }
 
+export async function POST(req: NextRequest) {
+  // Handle CORS
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  }
+
+  if (req.method === 'OPTIONS') {
+    return new NextResponse(null, { headers: corsHeaders })
+  }
+
+  try {
+    const { email, password, publicKey, secretKey } = await req.json()
+
+    const application = await verifyApiKey(publicKey, secretKey)
+    if (!application) {
+      return NextResponse.json({ 
+        error: 'Invalid API key',
+        status: 401
+      } as ApiResponse, { status: 401, headers: corsHeaders })
+    }
+
+    const user = await db.user.findFirst({
+      where: { 
+        email,
+        ApplicationUser: {
+          some: {
+            application_id: application.id
+          }
+        }
+      }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found', status: 404 } as ApiResponse, { status: 404, headers: corsHeaders })
+    }
+
+    if (!user.password) {
+      return NextResponse.json({ error: 'Invalid credentials', status: 401 } as ApiResponse, { status: 401, headers: corsHeaders })
+    }
+
+    const isValid = await bcrypt.compare(password, user.password)
+
+    if (!isValid) {
+      return NextResponse.json({ error: 'Invalid credentials', status: 401 } as ApiResponse, { status: 401, headers: corsHeaders })
+    }
+
+    const token = jwt.sign({ id: user.gg_id, email: user.email }, process.env.JWT_SECRET as string)
+
+    return NextResponse.json({ token, user, status: 200 } as ApiResponse, { status: 200, headers: corsHeaders })
+  } catch (error) {
+    console.error(error)
+    return NextResponse.json({ error: 'Something went wrong', status: 500 } as ApiResponse, { status: 500, headers: corsHeaders })
+  }
+}
