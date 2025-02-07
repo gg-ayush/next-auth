@@ -135,3 +135,44 @@ export const createUserForApplication = async (
     },
   });
 };
+
+export async function getApplicationUsers(applicationId: string) {
+  try {
+    console.log(`Fetching users for application: ${applicationId}`)
+    const users = await db.applicationUser.findMany({
+      where: {
+        application_id: applicationId,
+        user: {
+          role: UserRole.User,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            gg_id: true,
+            email: true,
+            username: true,
+            phone_number: true,
+            created_at: true,
+          },
+        },
+      },
+    })
+
+    console.log(`Found ${users.length} users for application ${applicationId}`)
+
+    const formattedUsers = users.map((au) => ({
+      id: au.user.gg_id,
+      email: au.user.email,
+      username: au.user.username,
+      phone_number: au.user.phone_number,
+      joined: au.user.created_at.toISOString(),
+      lastSignedIn: null, // You might want to add this field to your schema if needed
+    }))
+
+    return { success: true, data: formattedUsers }
+  } catch (error) {
+    console.error("Error fetching application users:", error)
+    return { success: false, error: "Failed to fetch users" }
+  }
+}

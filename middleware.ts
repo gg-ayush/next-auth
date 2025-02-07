@@ -1,78 +1,92 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { auth } from '@/auth'
+import { auth } from "@/auth"
+import { NextResponse, type NextRequest } from "next/server"
 
-// List of allowed origins
-const allowedOrigins = ['http://localhost:3001', 'http://localhost:3000']
-
-// Helper function to check if origin is allowed
-function isOriginAllowed(origin: string | null) {
-  return origin && allowedOrigins.includes(origin)
+// Define roles as an enum or constant
+enum UserRole {
+  Developer = "Developer",
 }
+
+// Configuration object
 
 export default auth(async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isAuth = !!request.auth
-  const isUser = pathname.startsWith("/user")
-  const isAdmin = pathname.startsWith("/admin")
-  const isApiRoute = pathname.startsWith("/api")
-  const unprotectedRoutes = ["/login", "/register"]
-  const origin = request.headers.get('origin')
+  const isDashboard = pathname === ({
+    unprotectedRoutes: ["/login", "/register", "/"], // Added root route as unprotected
+    loginRoute: "/login",
+    homeRoute: "/",
+    dashboardRoute: "/dashboard",
+  }).dashboardRoute
+  const isRootRoute = pathname === ({
+    unprotectedRoutes: ["/login", "/register", "/"], // Added root route as unprotected
+    loginRoute: "/login",
+    homeRoute: "/",
+    dashboardRoute: "/dashboard",
+  }).homeRoute
 
-  // Handle CORS preflight requests
-  if (request.method === 'OPTIONS') {
-    if (!origin || !isOriginAllowed(origin)) {
-      return new NextResponse(null, { status: 400 })
+  // Logging
+  console.log(`Middleware processing: ${pathname}`)
+
+  try {
+    // Handle root route (default route when application starts)
+    if (isRootRoute) {
+      console.log("Accessing root route")
+      return NextResponse.next() // Allow access to all users
     }
 
-    return new NextResponse(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Max-Age': '86400',
-      },
-    })
-  }
+    // Handle authentication for dashboard route
+    if (isDashboard) {
+      if (!isAuth) {
+        console.log(`Redirecting unauthenticated user from dashboard to login`)
+        const url = new URL(({
+            unprotectedRoutes: ["/login", "/register", "/"], // Added root route as unprotected
+            loginRoute: "/login",
+            homeRoute: "/",
+            dashboardRoute: "/dashboard",
+          }).loginRoute, request.url)
+        url.searchParams.set("callbackUrl", pathname)
+        return NextResponse.redirect(url)
+      }
 
-  // For API routes, check origin
-  if (isApiRoute) {
-    if (!origin || !isOriginAllowed(origin)) {
-      return new NextResponse(null, { status: 400 })
+      // Check if the authenticated user is a Developer
+      if (request.auth?.user?.role !== UserRole.Developer) {
+        console.log(`Redirecting non-Developer user from dashboard`)
+        return NextResponse.redirect(new URL(({
+            unprotectedRoutes: ["/login", "/register", "/"], // Added root route as unprotected
+            loginRoute: "/login",
+            homeRoute: "/",
+            dashboardRoute: "/dashboard",
+          }).homeRoute, request.url))
+      }
     }
 
-    // Continue with the request but add CORS headers
-    const response = NextResponse.next()
-    response.headers.set('Access-Control-Allow-Origin', origin)
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    return response
-  }
+    // Handle authentication for other protected routes
+    if (!isAuth && !({
+      unprotectedRoutes: ["/login", "/register", "/"], // Added root route as unprotected
+      loginRoute: "/login",
+      homeRoute: "/",
+      dashboardRoute: "/dashboard",
+    }).unprotectedRoutes.includes(pathname)) {
+      console.log(`Redirecting unauthenticated user to login`)
+      const url = new URL(({
+          unprotectedRoutes: ["/login", "/register", "/"], // Added root route as unprotected
+          loginRoute: "/login",
+          homeRoute: "/",
+          dashboardRoute: "/dashboard",
+        }).loginRoute, request.url)
+      url.searchParams.set("callbackUrl", pathname)
+      return NextResponse.redirect(url)
+    }
 
-  // Handle authentication for non-API routes
-  if (!isAuth && !unprotectedRoutes.includes(pathname)) {
-    const url = new URL("/login", request.url)
-    url.searchParams.set("callbackUrl", pathname)
-    return NextResponse.redirect(url)
+    return NextResponse.next()
+  } catch (error) {
+    console.error("Middleware error:", error)
+    // Handle the error appropriately, maybe redirect to an error page
+    return NextResponse.redirect(new URL("/error", request.url))
   }
-
-  // Handle role-based access
-  if (isUser && request.auth?.user?.role !== "User") {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
-
-  if (isAdmin && request.auth?.user?.role !== "Developer") {
-    return NextResponse.redirect(new URL("/", request.url))
-  }
-
-  return NextResponse.next()
 })
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
-    "/",
-    "/(api|trpc)(.*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|public/).*)", "/", "/(api|trpc)(.*)"],
 }
 

@@ -33,7 +33,7 @@ type ResponseCode = keyof ResponseStatus;
 
 type ErrorType = keyof typeof reason;
 
-type ResponseError = {
+export type ResponseError = {
   success: false;
   error: {
     code: ResponseCode;

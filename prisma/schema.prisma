@@ -84,6 +84,8 @@ model Application {
   users       ApplicationUser[]
 
   ApplicationApiKey ApplicationApiKey[]
+
+  Invitation Invitation[]
 }
 
 model ApplicationUser {
@@ -95,6 +97,18 @@ model ApplicationUser {
   created_at    DateTime   @default(now())
   updated_at  DateTime      @updatedAt
   @@unique([user_id, application_id])
+}
+
+model Invitation {
+  id             String   @id @default(cuid())
+  email          String
+  token          String   @unique
+  expires        DateTime
+  application_id String
+  application    Application @relation(fields: [application_id], references: [id])
+  created_at     DateTime @default(now())
+
+  @@index([email, application_id])
 }
 
 model VerificationToken {

@@ -1,16 +1,16 @@
 "use client";
 
-import React from "react";
 import { Button } from "@/src/ui/button/button";
-import { Play, SkipBack, SkipForward, Sun, CheckCircle } from "lucide-react";
+import { Play, SkipBack, SkipForward, Sun } from "lucide-react";
+import React from "react";
 import CustomToolTip from "../CustomComponents/CustomToolTip";
 import { MobileInterfaceProps } from "./interface/MobileInterface.interface";
 
 //icon
-import { RxCross2 } from "react-icons/rx";
-import { ColorPicker } from "../CustomComponents/ColorPicker";
 import { useMobileSimulator } from "@/src/components/comp/MobileSimulator/provider/MobileSimulatorContext";
 import { ThemeType } from "@prisma/client";
+import { RxCross2 } from "react-icons/rx";
+import { ColorPicker } from "../CustomComponents/ColorPicker";
 
 const scheduleData = [
   { day: "S", schedule: [1, 0, 1, 1, 0, 1, 0] },
