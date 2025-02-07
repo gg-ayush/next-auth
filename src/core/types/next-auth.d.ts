@@ -4,6 +4,7 @@ export type ExtendedUser = DefaultSession["user"] & {
   gg_id: string;
   username?: string | null;
   email?: string | null;
+  phone_number?: string | null;
   role: UserRole;
   isTwoFactorEnabled: boolean;
   isOAuth: boolean;

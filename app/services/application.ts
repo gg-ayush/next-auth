@@ -109,7 +109,7 @@ export const regenerateApiKey = async (applicationId: string) => {
     const existingApiKey = await db.applicationApiKey.findFirst({
       where: { application_id: applicationId },
     });
-
+    
     if (!existingApiKey) {
       throw new Error("No API key found for this application");
     }
